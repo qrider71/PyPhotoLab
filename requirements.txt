@@ -1,0 +1,8 @@
+numpy
+arrow
+pillow
+scikit-learn
+geopy
+ipyleaflet
+ipywidgets
+gpsphoto
