@@ -1,3 +1,4 @@
+-- Main table for storing attributes of photos
 create table photos
 (
     id         integer primary key,
@@ -11,6 +12,7 @@ create table photos
 
 create unique index photos_hash_idx on photos (hash_value);
 
+-- Table with paths for photos, a photo can exist multiple times with different paths
 create table paths
 (
     id       integer primary key,
@@ -22,6 +24,7 @@ create table paths
 create unique index paths_path_idx on paths (path);
 create unique index paths_path_photoid_idx on paths (path, photo_id);
 
+-- holds output of the geographic clustering, each coordinate is assigned to a cluster label
 create table clusters
 (
     id      integer primary key,
@@ -32,6 +35,7 @@ create table clusters
 
 create unique index clusters_coords_idx on clusters (lat_deg, lon_deg);
 
+-- view for accessing all coordinates
 create view all_coords_view
 as
 select photos.lat_deg,
@@ -41,6 +45,7 @@ where photos.lat_deg is not null
   and photos.lon_deg is not null;
 
 
+-- view for associating photos (referred by their id) with cluster labels
 create view all_photos_clustered_view
 as
 select p.id, p.lat_deg, p.lon_deg, c.label
@@ -48,6 +53,8 @@ from photos p
          inner join clusters c on p.lat_deg = c.lat_deg and p.lon_deg = c.lon_deg;
 
 
+-- calculates center coordinates for each cluster (weighted average by number of photos,
+-- i.e. coordinates with more photos have higher weight)
 create view cluster_centers_view as
 select p.label, avg(p.lat_deg) as lat_deg, avg(p.lon_deg) as lon_deg, count(*) as count_photos
 from all_photos_clustered_view p

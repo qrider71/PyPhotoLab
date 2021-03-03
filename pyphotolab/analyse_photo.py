@@ -1,15 +1,14 @@
 from os import listdir
-from os.path import exists, isfile, isdir, join, normpath, getsize
+from os.path import isfile, isdir, join, normpath, getsize
 from hashlib import sha512
-from numpy import deg2rad
 from GPSPhoto import gpsphoto
-from geopy.geocoders import Nominatim
 from PIL import Image
-import sqlite3
 
 from sklearn.cluster import OPTICS, cluster_optics_dbscan
 
 import arrow
+
+from pyphotolab.photodb import *
 
 BLOCK_SIZE = 65536
 
@@ -38,6 +37,7 @@ class PhotoInfo:
             self.timestamp = None
             self.date_time = None
 
+    # creates hashmap representation for JSON export
     def to_map(self):
         return {
             KEY_FILE_PATH: self.file_path,
@@ -49,6 +49,8 @@ class PhotoInfo:
         }
 
 
+# Traverses path recursively and import all photo information into the sqlite db for further analysis.
+# This might be time consuming for huge amount of photos
 def import_photos_into_db(path):
     conn = db_connect()
     map_hash_photoid = db_select_photos_hash_id(conn)
@@ -83,6 +85,7 @@ def import_photos_into_db(path):
     conn.close()
 
 
+# performs geographic clustering on photo information in the sqlite db
 def cluster():
     print("Start clustering")
     conn = db_connect()
@@ -91,10 +94,8 @@ def cluster():
     clustering = OPTICS(min_samples=20, metric='haversine').fit(coords_rad)
 
     labels_dbscan = cluster_optics_dbscan(reachability=clustering.reachability_,
-                                       core_distances=clustering.core_distances_,
-                                       ordering=clustering.ordering_, eps=1.0/6371.0)
-
-
+                                          core_distances=clustering.core_distances_,
+                                          ordering=clustering.ordering_, eps=1.0 / 6371.0)
 
     # coords_rad_labels = zip(coords_rad, clustering.labels_)
     coords_rad_labels = zip(coords_rad, labels_dbscan)
@@ -102,8 +103,11 @@ def cluster():
 
     db_create_clusters(conn, map_coords_deg_cluster)
     conn.close()
+    print("Finished clustering")
 
 
+# analyses photo referenced by path and extracts properties (hash value, size, gps coordinates, timestamp, etc.)
+# for further analysis
 def analyse_photo(path):
     norm_path = normpath(path)
     info = PhotoInfo(
@@ -116,6 +120,7 @@ def analyse_photo(path):
     return info
 
 
+# computes hash value from the specified photo file
 def hash_value_for_file(path):
     hash_function = sha512()
     with open(path, 'rb') as f:
@@ -126,6 +131,7 @@ def hash_value_for_file(path):
     return hash_function.hexdigest()
 
 
+# extracts gps coordinates from the specified photo file
 def coords(path):
     try:
         gps_data = gpsphoto.getGPSData(path)
@@ -138,6 +144,7 @@ def coords(path):
         return None
 
 
+# extracts EXIF timestamp from the specified photo file
 def date_time_original(path):
     try:
         exif = Image.open(path).getexif()
@@ -152,10 +159,12 @@ def date_time_original(path):
         return None
 
 
+# filters files for jpeg files only
 def get_jpg_files(path):
     return filter(lambda f: f.endswith(".jpg") or f.endswith(".JPG"), get_files(path))
 
 
+# traverses path recursively and return list with all files
 def get_files(path):
     npath = normpath(path)
     if isfile(npath):
@@ -164,6 +173,7 @@ def get_files(path):
         return get_files_rec([], npath)
 
 
+# recursive implementation for traversing path
 def get_files_rec(files, path):
     if isfile(path):
         files.append(path)
@@ -172,96 +182,3 @@ def get_files_rec(files, path):
         for f in contents:
             files = get_files_rec(files, join(path, f))
     return files
-
-
-def db_connect():
-    db_path = 'photos.db'
-    db_exists = exists(db_path)
-    conn = sqlite3.connect(db_path)
-    if not db_exists:
-        db_create(conn)
-    return conn
-
-
-def db_create(conn):
-    with open('db_setup.sql', 'r') as sql_file:
-        sql_script = sql_file.read()
-
-    c = conn.cursor()
-    c.executescript(sql_script)
-    conn.commit()
-    c.close()
-
-
-def db_select(conn, query):
-    c = conn.cursor()
-    c.execute(query)
-    res = c.fetchall()
-    c.close()
-    return res
-
-
-def db_select_photos_hash_id(conn):
-    res = db_select(conn, '''SELECT hash_value, id from photos''')
-    return {h: i for (h, i) in res}
-
-
-def db_select_paths_path_photoid(conn):
-    res = db_select(conn, '''SELECT path, photo_id from paths''')
-    return {p: i for (p, i) in res}
-
-
-def db_select_photos_coords(conn):
-    res = db_select(conn, '''SELECT lat_deg, lon_deg from all_coords_view ''')
-    return {tuple(deg2rad((lat_deg, lon_deg))): (lat_deg, lon_deg) for (lat_deg, lon_deg) in res}
-
-
-def db_insert_path(conn, photo_id_existing, file_path):
-    c = conn.cursor()
-    c.execute("INSERT INTO paths (photo_id, path) VALUES (?, ?)", (photo_id_existing, file_path))
-    conn.commit()
-    c.close()
-
-
-def db_insert_photo(conn, info):
-    coords_deg = info.coords_deg
-    if coords_deg is not None:
-        (lat_deg, lon_deg) = coords_deg
-    else:
-        lat_deg = None
-        lon_deg = None
-
-    c = conn.cursor()
-    c.execute('''INSERT INTO photos (
-                    file_size, 
-                    timestamp, 
-                    date_time, 
-                    lat_deg,
-                    lon_deg,
-                    hash_value) VALUES (?, ?, ?, ?, ?, ?)''',
-              (info.file_size,
-               info.timestamp,
-               info.date_time,
-               lat_deg,
-               lon_deg,
-               info.hash_value))
-    conn.commit()
-
-    c.execute('''SELECT id from photos where hash_value=:hash''', {"hash": info.hash_value})
-    res = c.fetchone()
-    photo_id = res[0]
-    c.close()
-
-    db_insert_path(conn, photo_id, info.file_path)
-    return photo_id
-
-
-def db_create_clusters(conn, map_coords_deg_cluster):
-    c = conn.cursor()
-    c.execute("DELETE FROM clusters")
-    for key in map_coords_deg_cluster.keys():
-        label = map_coords_deg_cluster[key].item()
-        (lat_deg, lon_deg) = key
-        c.execute("INSERT INTO clusters (label, lat_deg, lon_deg) VALUES (?, ?, ?)", (label, lat_deg, lon_deg))
-        conn.commit()
-    c.close()
