@@ -94,12 +94,42 @@ def db_insert_photo(conn, info):
 
 
 # insert all coordinates with cluster labels into clusters table, coordinates are in degree
-def db_create_clusters(conn, map_coords_deg_cluster):
+def db_create_clusters(conn, map_coords_deg_cluster, map_hull_points_idx):
     c = conn.cursor()
     c.execute("DELETE FROM clusters")
     for key in map_coords_deg_cluster.keys():
         label = map_coords_deg_cluster[key].item()
         (lat_deg, lon_deg) = key
-        c.execute("INSERT INTO clusters (label, lat_deg, lon_deg) VALUES (?, ?, ?)", (label, lat_deg, lon_deg))
+        if key in map_hull_points_idx:
+            # point is a hull curve vertex
+            hull_idx = map_hull_points_idx[key]
+        else:
+            hull_idx = None
+        c.execute("INSERT INTO clusters (label, lat_deg, lon_deg, hull_idx) VALUES (?, ?, ?, ?)",
+                  (label, lat_deg, lon_deg, hull_idx))
         conn.commit()
     c.close()
+
+
+def db_get_hull_curve(conn, label):
+    c = conn.cursor()
+    c.execute('''select lat_deg, lon_deg, hull_idx from cluster_hull_view where label=:label''', {"label": label})
+    res = c.fetchall()
+    c.close()
+    res.sort(key=lambda item: item[2])  # sort by hull_idx
+    polygon = [(lat_deg, lon_deg) for (lat_deg, lon_deg, hull_idx) in res]
+    first_point = polygon[0]
+    last_point = polygon[-1]
+    if last_point != first_point:
+        polygon.append(first_point)  # close the polygon
+    return polygon
+
+
+def db_get_cluster_centers(conn):
+    res = db_select(conn, '''SELECT label, count_photos, lat_deg, lon_deg from cluster_centers_view where label >= 0''')
+    return res
+
+
+def db_get_unclustered_points(conn):
+    res = db_select(conn, '''SELECT lat_deg, lon_deg from clusters where label < 0''')
+    return res

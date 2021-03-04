@@ -27,10 +27,11 @@ create unique index paths_path_photoid_idx on paths (path, photo_id);
 -- holds output of the geographic clustering, each coordinate is assigned to a cluster label
 create table clusters
 (
-    id      integer primary key,
-    label   integer not null,
-    lat_deg real    not null,
-    lon_deg real    not null
+    id       integer primary key,
+    label    integer not null,
+    lat_deg  real    not null,
+    lon_deg  real    not null,
+    hull_idx integer
 );
 
 create unique index clusters_coords_idx on clusters (lat_deg, lon_deg);
@@ -60,3 +61,9 @@ select p.label, avg(p.lat_deg) as lat_deg, avg(p.lon_deg) as lon_deg, count(*) a
 from all_photos_clustered_view p
 group by p.label
 order by p.label;
+
+create view cluster_hull_view as
+select c.label, c.lat_deg, c.lon_deg, c.hull_idx
+from clusters c
+where c.hull_idx is not null
+order by c.label, c.hull_idx

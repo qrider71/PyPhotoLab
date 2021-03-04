@@ -3,6 +3,7 @@
 ```
 conda install jupyterlab
 conda install -c conda-forge geopy
+conda install -c conda-forge geojson
 conda install -c conda-forge ipyleaflet
 jupyter labextension install jupyter-leaflet  
 jupyter labextension install @jupyter-widgets/jupyterlab-manager

@@ -3,6 +3,7 @@ from os.path import isfile, isdir, join, normpath, getsize
 from hashlib import sha512
 from GPSPhoto import gpsphoto
 from PIL import Image
+from scipy.spatial import ConvexHull
 
 from sklearn.cluster import OPTICS, cluster_optics_dbscan
 
@@ -91,19 +92,43 @@ def cluster():
     conn = db_connect()
     coords_map = db_select_photos_coords(conn)
     coords_rad = list(coords_map.keys())
-    clustering = OPTICS(min_samples=20, metric='haversine').fit(coords_rad)
+    clustering = OPTICS(min_samples=5, metric='haversine').fit(coords_rad)
 
     labels_dbscan = cluster_optics_dbscan(reachability=clustering.reachability_,
                                           core_distances=clustering.core_distances_,
-                                          ordering=clustering.ordering_, eps=1.0 / 6371.0)
+                                          ordering=clustering.ordering_, eps=5.0 / 6371.0)
 
     # coords_rad_labels = zip(coords_rad, clustering.labels_)
     coords_rad_labels = zip(coords_rad, labels_dbscan)
     map_coords_deg_cluster = {coords_map[coord_rad]: label for (coord_rad, label) in coords_rad_labels}
 
-    db_create_clusters(conn, map_coords_deg_cluster)
+    map_hull_points_idx = compute_hull_curves(map_coords_deg_cluster)
+
+    db_create_clusters(conn, map_coords_deg_cluster, map_hull_points_idx)
     conn.close()
     print("Finished clustering")
+
+
+# returns map with points on the hull curves with their curve position index for all clusters
+def compute_hull_curves(map_coords_deg_cluster):
+    print ("Computing hull curves")
+    map_hull_point_idx = {}
+    labels = {label for label in map_coords_deg_cluster.values()}
+    print("Found {} cluster labels".format(len(labels)))
+    for label in labels:
+        points = [[lat, lon] for (lat, lon) in map_coords_deg_cluster.keys() if
+                  map_coords_deg_cluster[(lat, lon)] == label]
+
+        hull_curve = ConvexHull(points)
+        vertices = hull_curve.vertices
+        n_vertices = len(vertices)
+        print("Found {} points for cluster label {} with {} vertices".format(len(points), label, n_vertices))
+        for i in range(n_vertices):
+            idx = vertices[i]
+            (lat, lon) = points[idx]
+            map_hull_point_idx[(lat, lon)] = i
+
+    return map_hull_point_idx
 
 
 # analyses photo referenced by path and extracts properties (hash value, size, gps coordinates, timestamp, etc.)
