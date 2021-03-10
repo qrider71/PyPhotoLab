@@ -11,6 +11,8 @@ import arrow
 from pyphotolab.files import get_jpg_files
 from pyphotolab.photodb import *
 
+RADIUS_EARTH_KM = 6371.0
+
 BLOCK_SIZE = 65536
 
 KEY_FILE_PATH = "file-path"
@@ -87,16 +89,18 @@ def import_photos_into_db(path):
 
 
 # performs geographic clustering on photo information in the sqlite db
-def cluster():
+# cluster_min_samples: minimum samples per cluster
+# cluster_eps: max distance for a point to become member of a cluster
+def cluster(cluster_min_samples=5, cluster_eps=2.0 / RADIUS_EARTH_KM):
     print("Start clustering")
     conn = db_connect()
     coords_map = db_select_photos_coords(conn)
     coords_rad = list(coords_map.keys())
-    clustering = OPTICS(min_samples=5, metric='haversine').fit(coords_rad)
+    clustering = OPTICS(min_samples=cluster_min_samples, metric='haversine').fit(coords_rad)
 
     labels_dbscan = cluster_optics_dbscan(reachability=clustering.reachability_,
                                           core_distances=clustering.core_distances_,
-                                          ordering=clustering.ordering_, eps=2.0 / 6371.0)
+                                          ordering=clustering.ordering_, eps=cluster_eps)
 
     # coords_rad_labels = zip(coords_rad, clustering.labels_)
     coords_rad_labels = zip(coords_rad, labels_dbscan)
@@ -111,7 +115,7 @@ def cluster():
 
 # returns map with points on the hull curves with their curve position index for all clusters
 def compute_hull_curves(map_coords_deg_cluster):
-    print ("Computing hull curves")
+    print("Computing hull curves")
     map_hull_point_idx = {}
     labels = {label for label in map_coords_deg_cluster.values()}
     print("Found {} cluster labels".format(len(labels)))

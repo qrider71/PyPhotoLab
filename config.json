@@ -1,0 +1,5 @@
+{
+  "photo-import-path" : "/Volumes/PassportMac/PhotosSource",
+  "cluster-min-samples" :  5 ,
+  "cluster-eps" : 2.0
+}
