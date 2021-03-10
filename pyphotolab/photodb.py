@@ -130,6 +130,6 @@ def db_get_cluster_centers(conn):
     return res
 
 
-def db_get_unclustered_points(conn):
+def db_get_no_cluster_points(conn):
     res = db_select(conn, '''SELECT lat_deg, lon_deg from clusters where label < 0''')
     return res

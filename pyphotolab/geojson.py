@@ -1,7 +1,10 @@
 from geojson import Point, MultiPoint, Polygon, Feature, FeatureCollection, dump
-from pyphotolab.photodb import db_connect, db_get_cluster_centers, db_get_hull_curve, db_get_unclustered_points
+from pyphotolab.photodb import db_connect, db_get_cluster_centers, db_get_hull_curve, db_get_no_cluster_points
 from pyphotolab.util import swap_lat_lon
 
+
+# NOTE: geojson uses (longitude/latitude) notion instead of (lat/lon)
+# so swap_lat_lon() needs to be calling before calling a geojson function
 
 def create_geo_features():
     features = []
@@ -25,12 +28,12 @@ def create_geo_features():
 
         features.append(feature)
 
-    unclustered_points = swap_lat_lon(db_get_unclustered_points(conn))
-    points = MultiPoint(unclustered_points)
+    no_cluster_points = swap_lat_lon(db_get_no_cluster_points(conn))
+    points = MultiPoint(no_cluster_points)
     feature = Feature(geometry=points, properties={
-            "marker-color": "#f6ae13",
-            "marker-size": "small",
-            "marker-symbol": "camera"})
+        "marker-color": "#f6ae13",
+        "marker-size": "small",
+        "marker-symbol": "camera"})
 
     features.append(feature)
 
@@ -38,7 +41,7 @@ def create_geo_features():
     return features
 
 
-def create_geojson_file(file_name='photo_locations.geojson'):
+def create_geojson_file(file_name='photo_locations.json'):
     features = create_geo_features()
     feature_collection = FeatureCollection(features)
     with open(file_name, 'w') as f:

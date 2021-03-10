@@ -1,5 +1,4 @@
-from os import listdir
-from os.path import isfile, isdir, join, normpath, getsize
+from os.path import normpath, getsize
 from hashlib import sha512
 from GPSPhoto import gpsphoto
 from PIL import Image
@@ -9,6 +8,7 @@ from sklearn.cluster import OPTICS, cluster_optics_dbscan
 
 import arrow
 
+from pyphotolab.files import get_jpg_files
 from pyphotolab.photodb import *
 
 BLOCK_SIZE = 65536
@@ -96,7 +96,7 @@ def cluster():
 
     labels_dbscan = cluster_optics_dbscan(reachability=clustering.reachability_,
                                           core_distances=clustering.core_distances_,
-                                          ordering=clustering.ordering_, eps=5.0 / 6371.0)
+                                          ordering=clustering.ordering_, eps=2.0 / 6371.0)
 
     # coords_rad_labels = zip(coords_rad, clustering.labels_)
     coords_rad_labels = zip(coords_rad, labels_dbscan)
@@ -182,28 +182,3 @@ def date_time_original(path):
     except:
         print("Error getting date_time_original from file {}".format(path))
         return None
-
-
-# filters files for jpeg files only
-def get_jpg_files(path):
-    return filter(lambda f: f.endswith(".jpg") or f.endswith(".JPG"), get_files(path))
-
-
-# traverses path recursively and return list with all files
-def get_files(path):
-    npath = normpath(path)
-    if isfile(npath):
-        return [npath]
-    elif isdir(npath):
-        return get_files_rec([], npath)
-
-
-# recursive implementation for traversing path
-def get_files_rec(files, path):
-    if isfile(path):
-        files.append(path)
-    elif isdir(path):
-        contents = listdir(path)
-        for f in contents:
-            files = get_files_rec(files, join(path, f))
-    return files

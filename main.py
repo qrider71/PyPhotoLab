@@ -4,9 +4,9 @@ from pyphotolab.geojson import *
 
 
 def main():
-    # ap.import_photos_into_db("/Users/qrider/Kamera-Uploads")
-    # ap.cluster()
-    test()
+    # ap.import_photos_into_db("/Volumes/PassportMac/PhotosSource")
+    ap.cluster()
+    create_geojson_file()
 
 
 def test():

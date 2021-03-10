@@ -66,4 +66,16 @@ create view cluster_hull_view as
 select c.label, c.lat_deg, c.lon_deg, c.hull_idx
 from clusters c
 where c.hull_idx is not null
-order by c.label, c.hull_idx
+order by c.label, c.hull_idx;
+
+create view duplicate_photos_ids_view as
+select pa.photo_id, count(*) num
+from paths pa
+group by pa.photo_id
+having num > 1;
+
+create view duplicate_photos_id_paths_view as
+select pa.photo_id, pa.path, pam.num
+from duplicate_photos_ids_view pam
+         inner join paths pa on pam.photo_id = pa.photo_id
+order by pa.photo_id, pa.path;
