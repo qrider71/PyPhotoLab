@@ -17,4 +17,5 @@ conda install ipywidgets
 pip install gpsphoto     
 conda install -c conda-forge piexif
 conda install -c conda-forge exifread
+conda install -c conda-forge googletrans
 ```

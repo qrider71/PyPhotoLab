@@ -1,6 +1,7 @@
 from geojson import Point, MultiPoint, Polygon, Feature, FeatureCollection, dump
 from pyphotolab.photodb import db_connect, db_get_cluster_centers, db_get_hull_curve, db_get_no_cluster_points
 from pyphotolab.util import swap_lat_lon
+from pyphotolab.geo_reverse import get_geo_description
 
 
 # NOTE: geojson uses (longitude/latitude) notion instead of (lat/lon)
@@ -13,6 +14,7 @@ def create_geo_features():
     for c in cluster_centers:
         (label, count_photos, lat_deg, lon_deg) = c
         point = Point((lon_deg, lat_deg))
+        get_geo_description(lat_deg, lon_deg)
         feature = Feature(geometry=point, properties={
             "photos-cluster-label": label,
             "photos-cluster-count": count_photos,
